@@ -2,15 +2,15 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
+
 import frappe
-
-from frappe.utils import cstr, cint
-from frappe import msgprint, throw, _
-
+from frappe import _, msgprint, throw
+from frappe.core.doctype.doctype.doctype import validate_series
 from frappe.model.document import Document
 from frappe.model.naming import parse_naming_series
 from frappe.permissions import get_doctypes_with_read
-from frappe.core.doctype.doctype.doctype import validate_series
+from frappe.utils import cint, cstr
+
 
 class NamingSeriesNotSetError(frappe.ValidationError): pass
 
@@ -79,7 +79,8 @@ class NamingSeries(Document):
 		options = self.scrub_options_list(ol)
 
 		# validate names
-		for i in options: self.validate_series_name(i)
+		for i in options:
+			self.validate_series_name(i)
 
 		if options and self.user_must_always_select:
 			options = [''] + options
@@ -138,7 +139,7 @@ class NamingSeries(Document):
 
 	def validate_series_name(self, n):
 		import re
-		if not re.match("^[\w\- /.#{}]*$", n, re.UNICODE):
+		if not re.match(r"^[\w\- \/.#{}]+$", n, re.UNICODE):
 			throw(_('Special Characters except "-", "#", ".", "/", "{" and "}" not allowed in naming series'))
 
 	@frappe.whitelist()
@@ -159,6 +160,7 @@ class NamingSeries(Document):
 		if frappe.db.get_value('Series', series, 'name', order_by="name") == None:
 			frappe.db.sql("insert into tabSeries (name, current) values (%s, 0)", (series))
 
+	@frappe.whitelist()
 	def update_series_start(self):
 		if self.prefix:
 			prefix = self.parse_naming_series()
@@ -182,8 +184,8 @@ class NamingSeries(Document):
 def set_by_naming_series(doctype, fieldname, naming_series, hide_name_field=True):
 	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 	if naming_series:
-		make_property_setter(doctype, "naming_series", "hidden", 0, "Check")
-		make_property_setter(doctype, "naming_series", "reqd", 1, "Check")
+		make_property_setter(doctype, "naming_series", "hidden", 0, "Check", validate_fields_for_doctype=False)
+		make_property_setter(doctype, "naming_series", "reqd", 1, "Check", validate_fields_for_doctype=False)
 
 		# set values for mandatory
 		try:
@@ -194,15 +196,15 @@ def set_by_naming_series(doctype, fieldname, naming_series, hide_name_field=True
 			pass
 
 		if hide_name_field:
-			make_property_setter(doctype, fieldname, "reqd", 0, "Check")
-			make_property_setter(doctype, fieldname, "hidden", 1, "Check")
+			make_property_setter(doctype, fieldname, "reqd", 0, "Check", validate_fields_for_doctype=False)
+			make_property_setter(doctype, fieldname, "hidden", 1, "Check", validate_fields_for_doctype=False)
 	else:
-		make_property_setter(doctype, "naming_series", "reqd", 0, "Check")
-		make_property_setter(doctype, "naming_series", "hidden", 1, "Check")
+		make_property_setter(doctype, "naming_series", "reqd", 0, "Check", validate_fields_for_doctype=False)
+		make_property_setter(doctype, "naming_series", "hidden", 1, "Check", validate_fields_for_doctype=False)
 
 		if hide_name_field:
-			make_property_setter(doctype, fieldname, "hidden", 0, "Check")
-			make_property_setter(doctype, fieldname, "reqd", 1, "Check")
+			make_property_setter(doctype, fieldname, "hidden", 0, "Check", validate_fields_for_doctype=False)
+			make_property_setter(doctype, fieldname, "reqd", 1, "Check", validate_fields_for_doctype=False)
 
 			# set values for mandatory
 			frappe.db.sql("""update `tab{doctype}` set `{fieldname}`=`name` where

@@ -2,8 +2,10 @@
 # For license information, please see license.txt
 
 from __future__ import unicode_literals
+
 import frappe
 from frappe import _
+
 
 def execute(filters=None):
 	columns = get_columns()
@@ -122,7 +124,7 @@ def get_report_summary(data):
 	if not data:
 		return None
 
-	avg_completion = sum([project.percent_complete for project in data]) / len(data)
+	avg_completion = sum(project.percent_complete for project in data) / len(data)
 	total = sum([project.total_tasks for project in data])
 	total_overdue = sum([project.overdue_tasks for project in data])
 	completed = sum([project.completed_tasks for project in data])
@@ -131,25 +133,25 @@ def get_report_summary(data):
 		{
 			"value": avg_completion,
 			"indicator": "Green" if avg_completion > 50 else "Red",
-			"label": "Average Completion",
+			"label": _("Average Completion"),
 			"datatype": "Percent",
 		},
 		{
 			"value": total,
 			"indicator": "Blue",
-			"label": "Total Tasks",
+			"label": _("Total Tasks"),
 			"datatype": "Int",
 		},
 		{
 			"value": completed,
 			"indicator": "Green",
-			"label": "Completed Tasks",
+			"label": _("Completed Tasks"),
 			"datatype": "Int",
 		},
 		{
 			"value": total_overdue,
 			"indicator": "Green" if total_overdue == 0 else "Red",
-			"label": "Overdue Tasks",
+			"label": _("Overdue Tasks"),
 			"datatype": "Int",
 		}
 	]

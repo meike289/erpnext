@@ -2,12 +2,16 @@
 # License: GNU General Public License v3. See license.txt
 from __future__ import unicode_literals
 
-import frappe
-import unittest
 import json
+import unittest
+
+import frappe
 from frappe import _
 from frappe.utils import random_string
-from erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts import get_charts_for_country
+
+from erpnext.accounts.doctype.account.chart_of_accounts.chart_of_accounts import (
+	get_charts_for_country,
+)
 
 test_ignore = ["Account", "Cost Center", "Payment Terms Template", "Salary Component", "Warehouse"]
 test_dependencies = ["Fiscal Year"]
@@ -86,15 +90,6 @@ class TestCompany(unittest.TestCase):
 					self.delete_mode_of_payment(template)
 					frappe.delete_doc("Company", template)
 
-	def test_delete_communication(self):
-		from erpnext.setup.doctype.company.delete_company_transactions import delete_communications
-		company = create_child_company()
-		lead = create_test_lead_in_company(company)
-		communication = create_company_communication("Lead", lead)
-		delete_communications("Lead", "Test Company", "company")
-		self.assertFalse(frappe.db.exists("Communcation", communication))
-		self.assertFalse(frappe.db.exists({"doctype":"Comunication Link", "link_name": communication}))
-
 	def delete_mode_of_payment(self, company):
 		frappe.db.sql(""" delete from `tabMode of Payment Account`
 			where company =%s """, (company))
@@ -139,4 +134,3 @@ def create_test_lead_in_company(company):
 		lead.company = company
 		lead.save()
 	return lead.name
-

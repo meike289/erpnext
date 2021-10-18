@@ -3,11 +3,18 @@
 # See license.txt
 from __future__ import unicode_literals
 
-import frappe
 import unittest
-from erpnext.hr.doctype.leave_application.test_leave_application import get_leave_period, get_employee
-from erpnext.hr.doctype.leave_policy_assignment.leave_policy_assignment import create_assignment_for_multiple_employees
+
+import frappe
+
+from erpnext.hr.doctype.leave_application.test_leave_application import (
+	get_employee,
+	get_leave_period,
+)
 from erpnext.hr.doctype.leave_policy.test_leave_policy import create_leave_policy
+from erpnext.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
+	create_assignment_for_multiple_employees,
+)
 
 test_dependencies = ["Employee"]
 
@@ -35,7 +42,6 @@ class TestLeavePolicyAssignment(unittest.TestCase):
 		leave_policy_assignments = create_assignment_for_multiple_employees([employee.name], frappe._dict(data))
 
 		leave_policy_assignment_doc = frappe.get_doc("Leave Policy Assignment", leave_policy_assignments[0])
-		leave_policy_assignment_doc.grant_leave_alloc_for_employee()
 		leave_policy_assignment_doc.reload()
 
 		self.assertEqual(leave_policy_assignment_doc.leaves_allocated, 1)
@@ -73,7 +79,6 @@ class TestLeavePolicyAssignment(unittest.TestCase):
 		leave_policy_assignments = create_assignment_for_multiple_employees([employee.name], frappe._dict(data))
 
 		leave_policy_assignment_doc = frappe.get_doc("Leave Policy Assignment", leave_policy_assignments[0])
-		leave_policy_assignment_doc.grant_leave_alloc_for_employee()
 		leave_policy_assignment_doc.reload()
 
 
@@ -101,5 +106,3 @@ class TestLeavePolicyAssignment(unittest.TestCase):
 	def tearDown(self):
 		for doctype in ["Leave Application", "Leave Allocation", "Leave Policy Assignment", "Leave Ledger Entry"]:
 			frappe.db.sql("delete from `tab{0}`".format(doctype)) #nosec
-
-

@@ -15,7 +15,7 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 	},
 
 	refresh: function (frm) {
-		frappe.require("assets/js/bank-reconciliation-tool.min.js", () =>
+		frappe.require("bank-reconciliation-tool.bundle.js", () =>
 			frm.trigger("make_reconciliation_tool")
 		);
 		frm.upload_statement_button = frm.page.set_secondary_action(
@@ -78,8 +78,7 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 				if (
 					frm.doc.bank_account &&
 					frm.doc.bank_statement_from_date &&
-					frm.doc.bank_statement_to_date &&
-					frm.doc.bank_statement_closing_balance
+					frm.doc.bank_statement_to_date
 				) {
 					frm.trigger("render_chart");
 					frm.trigger("render");

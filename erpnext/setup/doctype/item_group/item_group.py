@@ -2,19 +2,22 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
-import frappe
+
 import copy
+
+import frappe
 from frappe import _
-from frappe.utils import nowdate, cint, cstr
+from frappe.utils import cint, cstr, nowdate
 from frappe.utils.nestedset import NestedSet
+from frappe.website.utils import clear_cache
 from frappe.website.website_generator import WebsiteGenerator
-from frappe.website.render import clear_cache
-from frappe.website.doctype.website_slideshow.website_slideshow import get_slideshow
-from erpnext.shopping_cart.product_info import set_product_info_for_website
-from erpnext.utilities.product import get_qty_in_stock
 from six.moves.urllib.parse import quote
-from erpnext.shopping_cart.product_query import ProductQuery
+
 from erpnext.shopping_cart.filters import ProductFiltersBuilder
+from erpnext.shopping_cart.product_info import set_product_info_for_website
+from erpnext.shopping_cart.product_query import ProductQuery
+from erpnext.utilities.product import get_qty_in_stock
+
 
 class ItemGroup(NestedSet, WebsiteGenerator):
 	nsm_parent_field = 'parent_item_group'
@@ -36,6 +39,7 @@ class ItemGroup(NestedSet, WebsiteGenerator):
 				self.parent_item_group = _('All Item Groups')
 
 		self.make_route()
+		self.validate_item_group_defaults()
 
 	def on_update(self):
 		NestedSet.on_update(self)
@@ -87,16 +91,16 @@ class ItemGroup(NestedSet, WebsiteGenerator):
 		if not field_filters:
 			field_filters = {}
 
-		# Ensure the query remains within current item group
-		field_filters['item_group'] = self.name
+		# Ensure the query remains within current item group & sub group
+		field_filters['item_group'] = [ig[0] for ig in get_child_groups(self.name)]
 
 		engine = ProductQuery()
-		context.items = engine.query(attribute_filters, field_filters, search, start)
+		context.items = engine.query(attribute_filters, field_filters, search, start, item_group=self.name)
 
 		filter_engine = ProductFiltersBuilder(self.name)
 
 		context.field_filters = filter_engine.get_field_filters()
-		context.attribute_filters = filter_engine.get_attribute_fitlers()
+		context.attribute_filters = filter_engine.get_attribute_filters()
 
 		context.update({
 			"parents": get_parent_item_groups(self.parent_item_group),
@@ -131,6 +135,10 @@ class ItemGroup(NestedSet, WebsiteGenerator):
 	def delete_child_item_groups_key(self):
 		frappe.cache().hdel("child_item_groups", self.name)
 
+	def validate_item_group_defaults(self):
+		from erpnext.stock.doctype.item.item import validate_item_default_company_links
+		validate_item_default_company_links(self.item_group_defaults)
+
 @frappe.whitelist(allow_guest=True)
 def get_product_list_for_group(product_group=None, start=0, limit=10, search=None):
 	if product_group:
@@ -139,7 +147,7 @@ def get_product_list_for_group(product_group=None, start=0, limit=10, search=Non
 			# return child item groups if the type is of "Is Group"
 			return get_child_groups_for_list_in_html(item_group, start, limit, search)
 
-	child_groups = ", ".join([frappe.db.escape(i[0]) for i in get_child_groups(product_group)])
+	child_groups = ", ".join(frappe.db.escape(i[0]) for i in get_child_groups(product_group))
 
 	# base query
 	query = """select I.name, I.item_name, I.item_code, I.route, I.image, I.website_image, I.thumbnail, I.item_group,
@@ -239,7 +247,7 @@ def get_item_for_list_in_html(context):
 	return frappe.get_template(products_template).render(context)
 
 def get_group_item_count(item_group):
-	child_groups = ", ".join(['"' + i[0] + '"' for i in get_child_groups(item_group)])
+	child_groups = ", ".join('"' + i[0] + '"' for i in get_child_groups(item_group))
 	return frappe.db.sql("""select count(*) from `tabItem`
 		where docstatus = 0 and show_in_website = 1
 		and (item_group in (%s)

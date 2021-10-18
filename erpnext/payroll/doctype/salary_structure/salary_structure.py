@@ -2,13 +2,15 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
-import frappe, erpnext
 
-from frappe.utils import flt, cint, cstr
+import frappe
 from frappe import _
-from frappe.model.mapper import get_mapped_doc
 from frappe.model.document import Document
-from six import iteritems
+from frappe.model.mapper import get_mapped_doc
+from frappe.utils import cint, cstr, flt
+
+import erpnext
+
 
 class SalaryStructure(Document):
 	def validate(self):
@@ -88,7 +90,7 @@ class SalaryStructure(Document):
 		return employees
 
 	@frappe.whitelist()
-	def assign_salary_structure(self, grade=None, department=None, designation=None,employee=None,
+	def assign_salary_structure(self, grade=None, department=None, designation=None, employee=None,
 			payroll_payable_account=None, from_date=None, base=None, variable=None, income_tax_slab=None):
 		employees = self.get_employees(company= self.company, grade= grade,department= department,designation= designation,name=employee)
 
@@ -206,4 +208,3 @@ def get_employees(salary_structure):
 			salary_structure, salary_structure))
 
 	return list(set([d.employee for d in employees]))
-

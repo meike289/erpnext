@@ -2,10 +2,12 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
-import frappe
-from frappe.utils import cstr, cint, getdate
-from frappe import msgprint, _
+
 from calendar import monthrange
+
+import frappe
+from frappe import _, msgprint
+from frappe.utils import cint, cstr, getdate
 
 status_map = {
 	"Absent": "A",
@@ -57,10 +59,10 @@ def execute(filters=None):
 
 	data = []
 
+	leave_types = frappe.db.get_list("Leave Type")
 	leave_list = None
 	if filters.summarized_view:
-		leave_types = frappe.db.sql("""select name from `tabLeave Type`""", as_list=True)
-		leave_list = [d[0] + ":Float:120" for d in leave_types]
+		leave_list = [d.name + ":Float:120" for d in leave_types]
 		columns.extend(leave_list)
 		columns.extend([_("Total Late Entries") + ":Float:120", _("Total Early Exits") + ":Float:120"])
 
@@ -72,11 +74,11 @@ def execute(filters=None):
 			if (att_map_set & emp_map_set):
 				parameter_row = ["<b>"+ parameter + "</b>"] + ['' for day in range(filters["total_days_in_month"] + 2)]
 				data.append(parameter_row)
-				record, emp_att_data = add_data(emp_map[parameter], att_map, filters, holiday_map, conditions, default_holiday_list, leave_list=leave_list)
+				record, emp_att_data = add_data(emp_map[parameter], att_map, filters, holiday_map, conditions, default_holiday_list, leave_types=leave_types)
 				emp_att_map.update(emp_att_data)
 				data += record
 	else:
-		record, emp_att_map = add_data(emp_map, att_map, filters, holiday_map, conditions, default_holiday_list, leave_list=leave_list)
+		record, emp_att_map = add_data(emp_map, att_map, filters, holiday_map, conditions, default_holiday_list, leave_types=leave_types)
 		data += record
 
 	chart_data = get_chart_data(emp_att_map, days)
@@ -126,7 +128,7 @@ def get_chart_data(emp_att_map, days):
 
 	return chart
 
-def add_data(employee_map, att_map, filters, holiday_map, conditions, default_holiday_list, leave_list=None):
+def add_data(employee_map, att_map, filters, holiday_map, conditions, default_holiday_list, leave_types=None):
 
 	record = []
 	emp_att_map = {}
@@ -204,9 +206,9 @@ def add_data(employee_map, att_map, filters, holiday_map, conditions, default_ho
 				else:
 					leaves[d.leave_type] = d.count
 
-			for d in leave_list:
-				if d in leaves:
-					row.append(leaves[d])
+			for d in leave_types:
+				if d.name in leaves:
+					row.append(leaves[d.name])
 				else:
 					row.append("0.0")
 

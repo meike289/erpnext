@@ -2,18 +2,19 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
-import frappe
+
 import json
 
+import frappe
+from frappe import ValidationError, _
 from frappe.model.naming import make_autoname
-from frappe.utils import cint, cstr, flt, add_days, nowdate, getdate, get_link_to_form
-from erpnext.stock.get_item_details import get_reserved_qty_for_so
-
-from frappe import _, ValidationError
-
-from erpnext.controllers.stock_controller import StockController
+from frappe.utils import add_days, cint, cstr, flt, get_link_to_form, getdate, nowdate
 from six import string_types
 from six.moves import map
+
+from erpnext.controllers.stock_controller import StockController
+from erpnext.stock.get_item_details import get_reserved_qty_for_so
+
 
 class SerialNoCannotCreateDirectError(ValidationError): pass
 class SerialNoCannotCannotChangeError(ValidationError): pass
@@ -165,8 +166,14 @@ class SerialNo(StockController):
 				)
 			ORDER BY
 				posting_date desc, posting_time desc, creation desc""",
-			(self.item_code, self.company,
-				serial_no, serial_no+'\n%', '%\n'+serial_no, '%\n'+serial_no+'\n%'), as_dict=1):
+			(
+				self.item_code, self.company,
+				serial_no,
+				serial_no+'\n%',
+				'%\n'+serial_no,
+				'%\n'+serial_no+'\n%'
+			),
+			as_dict=1):
 				if serial_no.upper() in get_serial_nos(sle.serial_no):
 					if cint(sle.actual_qty) > 0:
 						sle_dict.setdefault("incoming", []).append(sle)
@@ -243,7 +250,7 @@ def validate_serial_no(sle, item_det):
 				if frappe.db.exists("Serial No", serial_no):
 					sr = frappe.db.get_value("Serial No", serial_no, ["name", "item_code", "batch_no", "sales_order",
 						"delivery_document_no", "delivery_document_type", "warehouse", "purchase_document_type",
-						"purchase_document_no", "company"], as_dict=1)
+						"purchase_document_no", "company", "status"], as_dict=1)
 
 					if sr.item_code!=sle.item_code:
 						if not allow_serial_nos_with_different_item(serial_no, sle):
@@ -265,6 +272,9 @@ def validate_serial_no(sle, item_det):
 						if sr.warehouse!=sle.warehouse:
 							frappe.throw(_("Serial No {0} does not belong to Warehouse {1}").format(serial_no,
 								sle.warehouse), SerialNoWarehouseError)
+
+						if not sr.purchase_document_no:
+							frappe.throw(_("Serial No {0} not in stock").format(serial_no), SerialNoNotExistsError)
 
 						if sle.voucher_type in ("Delivery Note", "Sales Invoice"):
 
@@ -382,19 +392,6 @@ def has_serial_no_exists(sn, sle):
 	if sn.company != sle.company:
 		return False
 
-	status = False
-	if sn.purchase_document_no:
-		if (sle.voucher_type in ['Purchase Receipt', 'Stock Entry', "Purchase Invoice"] and
-			sn.delivery_document_type not in ['Purchase Receipt', 'Stock Entry', "Purchase Invoice"]):
-			status = True
-
-		# If status is receipt then system will allow to in-ward the delivered serial no
-		if (status and sle.voucher_type == "Stock Entry" and frappe.db.get_value("Stock Entry",
-			sle.voucher_no, "purpose") in ("Material Receipt", "Material Transfer")):
-			status = False
-
-	return status
-
 def allow_serial_nos_with_different_item(sle_serial_no, sle):
 	"""
 		Allows same serial nos for raw materials and finished goods
@@ -483,16 +480,13 @@ def get_serial_nos(serial_no):
 		if s.strip()]
 
 def update_args_for_serial_no(serial_no_doc, serial_no, args, is_new=False):
-	serial_no_doc.update({
-		"item_code": args.get("item_code"),
-		"company": args.get("company"),
-		"batch_no": args.get("batch_no"),
-		"via_stock_ledger": args.get("via_stock_ledger") or True,
-		"supplier": args.get("supplier"),
-		"location": args.get("location"),
-		"warehouse": (args.get("warehouse")
-			if args.get("actual_qty", 0) > 0 else None)
-	})
+	for field in ["item_code", "work_order", "company", "batch_no", "supplier", "location"]:
+		if args.get(field):
+			serial_no_doc.set(field, args.get(field))
+
+	serial_no_doc.via_stock_ledger = args.get("via_stock_ledger") or True
+	serial_no_doc.warehouse = (args.get("warehouse")
+		if args.get("actual_qty", 0) > 0 else None)
 
 	if is_new:
 		serial_no_doc.serial_no = serial_no
@@ -580,7 +574,7 @@ def auto_fetch_serial_number(qty, item_code, warehouse, posting_date=None, batch
 	if batch_nos:
 		try:
 			filters["batch_no"] = json.loads(batch_nos) if (type(json.loads(batch_nos)) == list) else [json.loads(batch_nos)]
-		except:
+		except Exception:
 			filters["batch_no"] = [batch_nos]
 
 	if posting_date:
@@ -617,13 +611,15 @@ def get_pos_reserved_serial_nos(filters):
 
 	return reserved_sr_nos
 
-def fetch_serial_numbers(filters, qty, do_not_include=[]):
+def fetch_serial_numbers(filters, qty, do_not_include=None):
+	if do_not_include is None:
+		do_not_include = []
 	batch_join_selection = ""
 	batch_no_condition = ""
 	batch_nos = filters.get("batch_no")
 	expiry_date = filters.get("expiry_date")
 	if batch_nos:
-		batch_no_condition = """and sr.batch_no in ({}) """.format(', '.join(["'%s'" % d for d in batch_nos]))
+		batch_no_condition = """and sr.batch_no in ({}) """.format(', '.join("'%s'" % d for d in batch_nos))
 
 	if expiry_date:
 		batch_join_selection = "LEFT JOIN `tabBatch` batch on sr.batch_no = batch.name "

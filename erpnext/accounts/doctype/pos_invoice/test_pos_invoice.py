@@ -3,17 +3,23 @@
 # See license.txt
 from __future__ import unicode_literals
 
+import copy
+import unittest
+
 import frappe
-import unittest, copy, time
-from erpnext.accounts.doctype.pos_profile.test_pos_profile import make_pos_profile
+
 from erpnext.accounts.doctype.pos_invoice.pos_invoice import make_sales_return
-from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
-from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
+from erpnext.accounts.doctype.pos_profile.test_pos_profile import make_pos_profile
+from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.stock.doctype.item.test_item import make_item
+from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
+from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
+
 
 class TestPOSInvoice(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls):
+		make_stock_entry(target="_Test Warehouse - _TC", item_code="_Test Item", qty=800, basic_rate=100)
 		frappe.db.sql("delete from `tabTax Rule`")
 
 	def tearDown(self):
@@ -211,8 +217,8 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(pos_return.get('payments')[1].amount, -500)
 
 	def test_pos_return_for_serialized_item(self):
-		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 		from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 
 		se = make_serialized_item(company='_Test Company',
 			target_warehouse="Stores - _TC", cost_center='Main - _TC', expense_account='Cost of Goods Sold - _TC')
@@ -237,8 +243,8 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(pos_return.get('items')[0].serial_no, serial_nos[0])
 
 	def test_partial_pos_returns(self):
-		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 		from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 
 		se = make_serialized_item(company='_Test Company',
 			target_warehouse="Stores - _TC", cost_center='Main - _TC', expense_account='Cost of Goods Sold - _TC')
@@ -291,8 +297,8 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertRaises(frappe.ValidationError, inv.insert)
 
 	def test_serialized_item_transaction(self):
-		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 		from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
 
 		se = make_serialized_item(company='_Test Company',
 			target_warehouse="Stores - _TC", cost_center='Main - _TC', expense_account='Cost of Goods Sold - _TC')
@@ -318,11 +324,43 @@ class TestPOSInvoice(unittest.TestCase):
 		pos2.get("items")[0].serial_no = serial_nos[0]
 		pos2.append("payments", {'mode_of_payment': 'Bank Draft', 'account': '_Test Bank - _TC', 'amount': 1000})
 
-		self.assertRaises(frappe.ValidationError, pos2.insert)
+		pos2.insert()
+		self.assertRaises(frappe.ValidationError, pos2.submit)
+
+	def test_delivered_serialized_item_transaction(self):
+		from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_serialized_item
+
+		se = make_serialized_item(company='_Test Company',
+			target_warehouse="Stores - _TC", cost_center='Main - _TC', expense_account='Cost of Goods Sold - _TC')
+
+		serial_nos = get_serial_nos(se.get("items")[0].serial_no)
+
+		si = create_sales_invoice(company='_Test Company', debit_to='Debtors - _TC',
+			account_for_change_amount='Cash - _TC', warehouse='Stores - _TC', income_account='Sales - _TC',
+			expense_account='Cost of Goods Sold - _TC', cost_center='Main - _TC',
+			item=se.get("items")[0].item_code, rate=1000, do_not_save=1)
+
+		si.get("items")[0].serial_no = serial_nos[0]
+		si.insert()
+		si.submit()
+
+		pos2 = create_pos_invoice(company='_Test Company', debit_to='Debtors - _TC',
+			account_for_change_amount='Cash - _TC', warehouse='Stores - _TC', income_account='Sales - _TC',
+			expense_account='Cost of Goods Sold - _TC', cost_center='Main - _TC',
+			item=se.get("items")[0].item_code, rate=1000, do_not_save=1)
+
+		pos2.get("items")[0].serial_no = serial_nos[0]
+		pos2.append("payments", {'mode_of_payment': 'Bank Draft', 'account': '_Test Bank - _TC', 'amount': 1000})
+
+		pos2.insert()
+		self.assertRaises(frappe.ValidationError, pos2.submit)
 
 	def test_loyalty_points(self):
+		from erpnext.accounts.doctype.loyalty_program.loyalty_program import (
+			get_loyalty_program_details_with_points,
+		)
 		from erpnext.accounts.doctype.loyalty_program.test_loyalty_program import create_records
-		from erpnext.accounts.doctype.loyalty_program.loyalty_program import get_loyalty_program_details_with_points
 
 		create_records()
 		frappe.db.set_value("Customer", "Test Loyalty Customer", "loyalty_program", "Test Single Loyalty")
@@ -342,7 +380,10 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(after_cancel_lp_details.loyalty_points, before_lp_details.loyalty_points)
 
 	def test_loyalty_points_redeemption(self):
-		from erpnext.accounts.doctype.loyalty_program.loyalty_program import get_loyalty_program_details_with_points
+		from erpnext.accounts.doctype.loyalty_program.loyalty_program import (
+			get_loyalty_program_details_with_points,
+		)
+
 		# add 10 loyalty points
 		create_pos_invoice(customer="Test Loyalty Customer", rate=10000)
 
@@ -360,8 +401,12 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(after_redeem_lp_details.loyalty_points, 9)
 
 	def test_merging_into_sales_invoice_with_discount(self):
-		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import init_user_and_profile
-		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import consolidate_pos_invoices
+		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import (
+			init_user_and_profile,
+		)
+		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+			consolidate_pos_invoices,
+		)
 
 		frappe.db.sql("delete from `tabPOS Invoice`")
 		test_user, pos_profile = init_user_and_profile()
@@ -384,8 +429,12 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(rounded_total, 3470)
 
 	def test_merging_into_sales_invoice_with_discount_and_inclusive_tax(self):
-		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import init_user_and_profile
-		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import consolidate_pos_invoices
+		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import (
+			init_user_and_profile,
+		)
+		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+			consolidate_pos_invoices,
+		)
 
 		frappe.db.sql("delete from `tabPOS Invoice`")
 		test_user, pos_profile = init_user_and_profile()
@@ -425,8 +474,12 @@ class TestPOSInvoice(unittest.TestCase):
 		self.assertEqual(rounded_total, 840)
 
 	def test_merging_with_validate_selling_price(self):
-		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import init_user_and_profile
-		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import consolidate_pos_invoices
+		from erpnext.accounts.doctype.pos_closing_entry.test_pos_closing_entry import (
+			init_user_and_profile,
+		)
+		from erpnext.accounts.doctype.pos_invoice_merge_log.pos_invoice_merge_log import (
+			consolidate_pos_invoices,
+		)
 
 		if not frappe.db.get_single_value("Selling Settings", "validate_selling_price"):
 			frappe.db.set_value("Selling Settings", "Selling Settings", "validate_selling_price", 1)

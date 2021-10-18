@@ -2,12 +2,15 @@
 # License: GNU General Public License v3. See license.txt
 
 from __future__ import unicode_literals
+
+import copy
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import cstr, flt
-import json, copy
-
 from six import string_types
+
 
 class ItemVariantExistsError(frappe.ValidationError): pass
 class InvalidItemAttributeValueError(frappe.ValidationError): pass
@@ -262,7 +265,8 @@ def copy_attributes_to_variant(item, variant):
 	# copy non no-copy fields
 
 	exclude_fields = ["naming_series", "item_code", "item_name", "show_in_website",
-		"show_variant_in_website", "opening_stock", "variant_of", "valuation_rate"]
+		"show_variant_in_website", "opening_stock", "variant_of", "valuation_rate",
+		"has_variants", "attributes"]
 
 	if item.variant_based_on=='Manufacturer':
 		# don't copy manufacturer values if based on part no
@@ -343,4 +347,3 @@ def create_variant_doc_for_quick_entry(template, args):
 			variant.name = variant.item_code
 			validate_item_variant_attributes(variant, args)
 	return variant.as_dict()
-

@@ -3,25 +3,29 @@
 
 
 from __future__ import unicode_literals
+
 import unittest
+
 import frappe
-from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
+
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
-from erpnext.stock.get_item_details import get_item_details
-from frappe import MandatoryError
+from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
 from erpnext.stock.doctype.item.test_item import make_item
-from erpnext.healthcare.doctype.lab_test_template.lab_test_template import make_item_price
+from erpnext.stock.get_item_details import get_item_details
+
 
 class TestPricingRule(unittest.TestCase):
 	def setUp(self):
 		delete_existing_pricing_rules()
+		setup_pricing_rule_data()
 
 	def tearDown(self):
 		delete_existing_pricing_rules()
 
 	def test_pricing_rule_for_discount(self):
-		from erpnext.stock.get_item_details import get_item_details
 		from frappe import MandatoryError
+
+		from erpnext.stock.get_item_details import get_item_details
 
 		test_record = {
 			"doctype": "Pricing Rule",
@@ -99,11 +103,12 @@ class TestPricingRule(unittest.TestCase):
 
 		args.item_code = "_Test Item 2"
 		details = get_item_details(args)
-		self.assertEquals(details.get("discount_percentage"), 15)
+		self.assertEqual(details.get("discount_percentage"), 15)
 
 	def test_pricing_rule_for_margin(self):
-		from erpnext.stock.get_item_details import get_item_details
 		from frappe import MandatoryError
+
+		from erpnext.stock.get_item_details import get_item_details
 
 		test_record = {
 			"doctype": "Pricing Rule",
@@ -145,8 +150,8 @@ class TestPricingRule(unittest.TestCase):
 			"name": None
 		})
 		details = get_item_details(args)
-		self.assertEquals(details.get("margin_type"), "Percentage")
-		self.assertEquals(details.get("margin_rate_or_amount"), 10)
+		self.assertEqual(details.get("margin_type"), "Percentage")
+		self.assertEqual(details.get("margin_rate_or_amount"), 10)
 
 	def test_mixed_conditions_for_item_group(self):
 		for item in ["Mixed Cond Item 1", "Mixed Cond Item 2"]:
@@ -192,11 +197,12 @@ class TestPricingRule(unittest.TestCase):
 			"name": None
 		})
 		details = get_item_details(args)
-		self.assertEquals(details.get("discount_percentage"), 10)
+		self.assertEqual(details.get("discount_percentage"), 10)
 
 	def test_pricing_rule_for_variants(self):
-		from erpnext.stock.get_item_details import get_item_details
 		from frappe import MandatoryError
+
+		from erpnext.stock.get_item_details import get_item_details
 
 		if not frappe.db.exists("Item", "Test Variant PRT"):
 			frappe.get_doc({
@@ -322,11 +328,11 @@ class TestPricingRule(unittest.TestCase):
 		si.insert(ignore_permissions=True)
 
 		item = si.items[0]
-		self.assertEquals(item.margin_rate_or_amount, 10)
-		self.assertEquals(item.rate_with_margin, 1100)
+		self.assertEqual(item.margin_rate_or_amount, 10)
+		self.assertEqual(item.rate_with_margin, 1100)
 		self.assertEqual(item.discount_percentage, 10)
-		self.assertEquals(item.discount_amount, 110)
-		self.assertEquals(item.rate, 990)
+		self.assertEqual(item.discount_amount, 110)
+		self.assertEqual(item.rate, 990)
 
 	def test_pricing_rule_with_margin_and_discount_amount(self):
 		frappe.delete_doc_if_exists('Pricing Rule', '_Test Pricing Rule')
@@ -338,10 +344,10 @@ class TestPricingRule(unittest.TestCase):
 		si.insert(ignore_permissions=True)
 
 		item = si.items[0]
-		self.assertEquals(item.margin_rate_or_amount, 10)
-		self.assertEquals(item.rate_with_margin, 1100)
-		self.assertEquals(item.discount_amount, 110)
-		self.assertEquals(item.rate, 990)
+		self.assertEqual(item.margin_rate_or_amount, 10)
+		self.assertEqual(item.rate_with_margin, 1100)
+		self.assertEqual(item.discount_amount, 110)
+		self.assertEqual(item.rate, 990)
 
 	def test_pricing_rule_for_product_discount_on_same_item(self):
 		frappe.delete_doc_if_exists('Pricing Rule', '_Test Pricing Rule')
@@ -458,21 +464,21 @@ class TestPricingRule(unittest.TestCase):
 		si.items[0].price_list_rate = 1000
 		si.submit()
 		item = si.items[0]
-		self.assertEquals(item.rate, 100)
+		self.assertEqual(item.rate, 100)
 
 		# Correct Customer and Incorrect is_return value
 		si = create_sales_invoice(do_not_submit=True, customer="_Test Customer 1", is_return=1, qty=-1)
 		si.items[0].price_list_rate = 1000
 		si.submit()
 		item = si.items[0]
-		self.assertEquals(item.rate, 100)
+		self.assertEqual(item.rate, 100)
 
 		# Correct Customer and correct is_return value
 		si = create_sales_invoice(do_not_submit=True, customer="_Test Customer 1", is_return=0)
 		si.items[0].price_list_rate = 1000
 		si.submit()
 		item = si.items[0]
-		self.assertEquals(item.rate, 900)
+		self.assertEqual(item.rate, 900)
 
 	def test_multiple_pricing_rules(self):
 		make_pricing_rule(discount_percentage=20, selling=1, priority=1, apply_multiple_pricing_rules=1,
@@ -545,14 +551,16 @@ class TestPricingRule(unittest.TestCase):
 			apply_on="Transaction", free_item="Water Flask 1", free_qty=1, free_item_rate=10)
 
 		si = create_sales_invoice(qty=5, do_not_submit=True)
-		self.assertEquals(len(si.items), 2)
-		self.assertEquals(si.items[1].rate, 10)
+		self.assertEqual(len(si.items), 2)
+		self.assertEqual(si.items[1].rate, 10)
 
 		si1 = create_sales_invoice(qty=2, do_not_submit=True)
-		self.assertEquals(len(si1.items), 1)
+		self.assertEqual(len(si1.items), 1)
 
 		for doc in [si, si1]:
 			doc.delete()
+
+test_dependencies = ["Campaign"]
 
 def make_pricing_rule(**args):
 	args = frappe._dict(args)
@@ -600,9 +608,25 @@ def make_pricing_rule(**args):
 	if args.get(applicable_for):
 		doc.db_set(applicable_for, args.get(applicable_for))
 
+def setup_pricing_rule_data():
+	if not frappe.db.exists('Campaign', '_Test Campaign'):
+		frappe.get_doc({
+			'doctype': 'Campaign',
+			'campaign_name': '_Test Campaign',
+			'name': '_Test Campaign'
+		}).insert()
 
 def delete_existing_pricing_rules():
 	for doctype in ["Pricing Rule", "Pricing Rule Item Code",
 		"Pricing Rule Item Group", "Pricing Rule Brand"]:
 
 		frappe.db.sql("delete from `tab{0}`".format(doctype))
+
+
+def make_item_price(item, price_list_name, item_price):
+	frappe.get_doc({
+		'doctype': 'Item Price',
+		'price_list': price_list_name,
+		'item_code': item,
+		'price_list_rate': item_price
+	}).insert(ignore_permissions=True, ignore_mandatory=True)
